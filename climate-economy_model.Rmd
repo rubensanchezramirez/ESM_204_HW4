@@ -82,7 +82,7 @@ Build a climate-economy model with risk and discounting, then conduct a seneitiv
 
 # BAU, Business as usual temperatire change equation:
 Temp.t <- function(T, t) {
-  r.t = ifelse(t <= 100,(T*t)/100, T)
+  r.t = pmin((T*t)/100, T)
   return(r.t)
 }
 
