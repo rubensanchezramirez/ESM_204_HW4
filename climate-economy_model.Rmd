@@ -1,0 +1,376 @@
+---
+title: "climate-economy_model_functions"
+author: "Ruben Sanchez Ramirez"
+date: "5/20/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+# Clear global environment:
+rm(list = ls())
+
+```
+
+```{r}
+
+# Attach packages:
+library(tidyverse)
+library(here)
+library(formattable)
+library(kableExtra)
+```
+
+***
+#### **Build Climate-Economy Model:**
+
+Build a climate-economy model with risk and discounting, then conduct a seneitivity analysis on the model.
+
+* Under BAU, let $r(t)$ be the temperature in year $t$ $(t = 0, 1, . . . , 200)$ relative to the temperature at time $0$.
+* Suppose:
+
+<center>
+   $r(t) = min(Tt/100,T)$
+   
+</center>
+    
+  * Where $T$ is the $BAU$ temperature increase at year $100$.
+  * For example, if $T = 5$ then the temperature increases over time (linear) until year $100$, when it flattens out at $5$.
+  * The hotter it is, the more it affects daily life and it starts to eat away at economic activity.
+* Let $K(t)$ be the fraction of economic activity that is retained in a year if the temperature is $r(t)$, given by:
+
+<center>
+     $K(t) = exp(-\beta r(t)^2)$
+     
+</center>
+
+* Economic activity (“consumption”) grows over time at rate g, but is reduced by $K$ (see above), so total consumption at time $t$ is:
+
+<center>
+     $C(t) = K(t)exp(gt)$
+     
+</center>
+
+* Society’s utility from consumption is given by the function:
+
+<center>
+     $U(C) = \frac {C^{1-\eta }}{1-\eta }$
+     
+</center>
+
+* For some analyses below, you may wish to discount utility to present value.
+* The discount rate is given by the Ramsey Rule:
+
+<center>
+     $r = \delta +\eta g$
+     
+</center>
+
+* Build a climate-economy model using the equations above.
+* Use the following base cause parameters for this model:
+
+<center>    
+     $\delta = .005$, $\eta = .5$, $g = .01$, $\beta =0.05$
+     
+</center>
+
+```{r}
+
+# Create all the equations:
+
+# BAU, Business as usual temperatire change equation:
+Temp.t <- function(T, t) {
+  r.t = ifelse(t <= 100,(T*t)/100, T)
+  return(r.t)
+}
+
+# Econ.Retain, Economic activity retained in a year with temp. at BAU temp. equation:
+Econ.Retain <- function(beta, Temp.t) {
+  K.t = exp(-beta*Temp.t^2)
+  return(K.t)
+}
+
+# Econ.Consum, Econmonic activity (consumption) growth over time at rate g, reduced by K equation:
+Econ.Consum <- function(Econ.Retain, g, t) {
+  C.t = Econ.Retain*exp(g*t)
+  return(C.t)
+}
+
+# Soc.Utility, Society's utility from consumption equation:
+Soc.Utility <- function(Econ.Consum, eta) {
+  U.C = (Econ.Consum^(1-eta)/1-eta)
+  return(U.C)
+}
+
+# Disct.Rate, The discount rate for utility present value equation (Ramsey Rule):
+Disct.Rate <- function(delta, eta, g) {
+  r = delta+(eta*g)
+  return(r)
+}
+
+# Base case parameters:
+delta = 0.005
+eta = 0.5
+g = 0.01
+beta = 0.05
+
+```
+
+***
+#### **1. Plots:**
+
+***
+**(a) Plot temperature over time for no climate change $(T = 0)$, with modest climate change $(T = 2)$, and with extreme climate change $(T = 8)$.**
+
+```{r}
+
+# Set the climate change values for the three different situations:
+# No climate change:
+T.1 = 0
+# Modest change:
+T.2 = 2
+# Extreme change:
+T.3 = 8
+
+# Create vectors for the change in temp. under BAU:
+# Year relative to time 0:
+t <- seq(1,200, by = 1)
+# No climate change:
+Temp.t.1 <- Temp.t(T.1, t)
+# Modest climate change:
+Temp.t.2 <- Temp.t(T.2, t)
+# Extreme change:
+Temp.t.3 <- Temp.t(T.3, t)
+# Create a data frame:
+temp.df <- tibble(t, Temp.t.1, Temp.t.2, Temp.t.3)
+
+# Create a plot of temperature over time for these three situations:
+Temp.t.Plot <- 
+  # change the df to longer format inorder to use groups:
+  temp.df %>% pivot_longer(-t,
+                                names_to = "climate_change",
+                                values_to = "temperature") %>% 
+  ggplot()+
+  geom_line(aes(x = t,
+                y = temperature,
+                color = climate_change))+
+  # Add theme and titles and lables:
+  theme_bw()+
+  labs(title = "Temperature Change (Relative) At Time t Under BAU",
+       subtitle = "Three Diffrent Climate Change Scenarios",
+       x = "Year t (Relative to time 0)", y = "Temperature Increase")+
+  scale_color_discrete(name = "Climate Change Scenario",
+                       labels = c("No Climate Change",
+                                  "Modest Climate Change",
+                                  "Extreme Climate Change"))+
+  # Change theme variables:
+  theme(text = element_text(family = "serif"),
+        plot.title = element_text(size=14, face="bold"),
+        plot.subtitle = element_text(size = 9, face = "bold.italic"),
+        axis.title.x = element_text(size=10, face="bold", vjust = -1),
+        axis.title.y = element_text(size=10, face="bold", vjust = 2),
+        strip.text.x = element_text(size = 10, face = "bold.italic"),
+        legend.title = element_text(size = 10, face = "bold.italic"),
+        legend.position = "bottom")
+
+# Save the plot:
+ggsave(here::here("figures", "Temp.t.plot.png"))
+
+# Call the plot:
+Temp.t.Plot
+
+```
+
+***
+**(b) Plot consumption over time for no climate change, modest climate change, and extreme climate change.**
+
+```{r}
+
+# Calculate K(t), the fraction of economic activity retained in year, for each year under the three different climate change scenarios:
+# No climate change:
+Econ.Retain.1 <- Econ.Retain(beta, Temp.t.1)
+# Modest climate change:
+Econ.Retain.2 <- Econ.Retain(beta, Temp.t.2)
+# Extreme change:
+Econ.Retain.3 <- Econ.Retain(beta, Temp.t.3)
+
+# Now calculate C(t), total consumption at time t reduced by K(t):
+# No climate change:
+Econ.Consum.1 <- Econ.Consum(Econ.Retain.1, g, t)
+# Modest climate change:
+Econ.Consum.2 <- Econ.Consum(Econ.Retain.2, g, t)
+# Extreme change:
+Econ.Consum.3 <- Econ.Consum(Econ.Retain.3, g, t)
+
+# Create a data frame for the change in concumption under BAU:
+Consum.df <- tibble(t, Econ.Consum.1, Econ.Consum.2, Econ.Consum.3) 
+
+# Create a plot of consumption over time for these three situations:
+Consum.Plot <- 
+  # change the df to longer format inorder to use groups:
+  Consum.df %>% pivot_longer(-t,
+                                names_to = "climate_change",
+                                values_to = "consumption") %>% 
+  ggplot()+
+  geom_line(aes(x = t,
+                y = consumption,
+                color = climate_change))+
+  # Add theme and titles and lables:
+  theme_bw()+
+  labs(title = "Economic Activity (Consumption) At Time t Under BAU",
+       subtitle = "Three Diffrent Climate Change Scenarios",
+       x = "Year t (Relative to time 0)", y = "Total Consumption")+
+  scale_color_discrete(name = "Climate Change Scenario",
+                       labels = c("No Climate Change",
+                                  "Modest Climate Change",
+                                  "Extreme Climate Change"))+
+  # Change theme variables:
+  theme(text = element_text(family = "serif"),
+        plot.title = element_text(size=14, face="bold"),
+        plot.subtitle = element_text(size = 9, face = "bold.italic"),
+        axis.title.x = element_text(size=10, face="bold", vjust = -1),
+        axis.title.y = element_text(size=10, face="bold", vjust = 2),
+        strip.text.x = element_text(size = 10, face = "bold.italic"),
+        legend.title = element_text(size = 10, face = "bold.italic"),
+        legend.position = "bottom")
+
+# Save the plot:
+ggsave(here::here("figures", "Consum.plot.png"))
+
+# Call the plot:
+Consum.Plot
+
+```
+
+***
+**(c) Plot undiscounted utility over time for no climate change, modest climate change, and extreme climate change.**
+
+```{r}
+
+# Calculate U(C), society's utility from consumption, for each year under the three different climate change scenarios:
+# No climate change:
+Soc.Utility.1 <- Soc.Utility(Econ.Consum.1, eta)
+# Modest climate change:
+Soc.Utility.2 <- Soc.Utility(Econ.Consum.2, eta)
+# Extreme change:
+Soc.Utility.3 <- Soc.Utility(Econ.Consum.3, eta)
+
+# Create a data frame for the change in utility under BAU:
+Utility.df <- tibble(t, Soc.Utility.1, Soc.Utility.2, Soc.Utility.3) 
+
+# Create a plot of undiscounted utility over time for these three situations:
+Utility.Plot <- 
+  # change the df to longer format inorder to use groups:
+  Utility.df %>% pivot_longer(-t,
+                                names_to = "climate_change",
+                                values_to = "utility") %>% 
+  ggplot()+
+  geom_line(aes(x = t,
+                y = utility,
+                color = climate_change))+
+  # Add theme and titles and lables:
+  theme_bw()+
+  labs(title = "Society's Utility (Undiscounted) At Time t Under BAU",
+       subtitle = "Three Diffrent Climate Change Scenarios",
+       x = "Year t (Relative to time 0)", y = "Undiscounted Uility")+
+  scale_color_discrete(name = "Climate Change Scenario",
+                       labels = c("No Climate Change",
+                                  "Modest Climate Change",
+                                  "Extreme Climate Change"))+
+  # Change theme variables:
+  theme(text = element_text(family = "serif"),
+        plot.title = element_text(size=14, face="bold"),
+        plot.subtitle = element_text(size = 9, face = "bold.italic"),
+        axis.title.x = element_text(size=10, face="bold", vjust = -1),
+        axis.title.y = element_text(size=10, face="bold", vjust = 2),
+        strip.text.x = element_text(size = 10, face = "bold.italic"),
+        legend.title = element_text(size = 10, face = "bold.italic"),
+        legend.position = "bottom")
+
+# Save the plot:
+ggsave(here::here("figures", "Utility.plot.png"))
+
+# Call the plot:
+Utility.Plot
+
+```
+
+***
+#### **2. Analysis:**
+
+***
+**(a) Suppose $T = 4.4$. In other words, suppose we know for sure that under BAU, climate change will eventually lead to a 4.4 degree increase in temperature. What is the present value (i.e. discounted) utility over the next 200 years with climate change? What is the present value utility without climate change? What is the percentage loss in present value utility from climate change (call this L)?**
+
+```{r}
+
+# Set the climate change value:
+T.4 = 4.4
+
+# Calculate the relative change in temperature:
+Temp.t.4 <- Temp.t(T.4, t)
+# Calculate K(t), the fraction of economic activity:
+Econ.Retain.4 <- Econ.Retain(beta, Temp.t.4)
+# Now calculate C(t), total consumption at time t reduced by K(t):
+Econ.Consum.4 <- Econ.Consum(Econ.Retain.4, g, t)
+# Calculate U(C), society's utility from consumption:
+Soc.Utility.4 <- Soc.Utility(Econ.Consum.4, eta)
+
+# Calculate the discount rate using the Ramsey Rule:
+r = delta+(eta*g)
+
+# Create an equation for the present day value using the calculated discount rate:
+Presnt.Valu <- function(V.t, r, t) {
+  V.p = V.t/((1+r)^t)
+  return(V.p)
+}
+
+# Calculate the present value utility over the next 200 years with and without climate change:
+# With 4.4 climate change:
+Presnt.Valu.4 <- Presnt.Valu(Soc.Utility.4, r, t)
+# Without climate change:
+Presnt.Valu.1 <- Presnt.Valu(Soc.Utility.1, r, t)
+
+# Calcualte the precentage loss on present value utility from climate change (call this L):
+# Create a function for precent loss:
+Precent.Loss <- function(P.1, P.4) {
+  L = (P.1-P.4)/P.1
+  return(L)
+}
+# Calculate the precent loss for each year:
+Precent.Loss.4 <- Precent.Loss(Presnt.Valu.1, Presnt.Valu.4)
+
+# Create a data frame for these values:
+BAU.Loss.df <- tibble(t, Presnt.Valu.1, Presnt.Valu.4, Precent.Loss.4) %>% 
+  rename("Year" = t,
+         "Present Value (No Climate Change)" = Presnt.Valu.1,
+         "Present Value (BAU Climate Change)" = Presnt.Valu.4,
+         "Loss in Present Value (%)" = Precent.Loss.4)
+
+# Make a table:
+BAU.Loss.Table <- 
+  formattable(BAU.Loss.df,
+              align = c("l","c","c","r"),
+              list(`Year` =
+                     formatter("span", style = ~ style(color = "grey",font.weight = "bold")),
+                   area(col = 2) ~ color_tile("white", "orange"),
+                   area(col = 3) ~ color_tile("white", "orange"),
+                   area(col = 4) ~ color_tile("#DeF7E9", "#71CA97"),
+                   area(col = 4) ~ percent
+                   )
+              )
+
+as.htmlwidget(BAU.Loss.Table, width = "100%", height = NULL)
+
+
+
+
+```
+
+
+
+
+
+
+
