@@ -339,50 +339,184 @@ Precent.Loss <- function(P.1, P.4) {
   return(L)
 }
 # Calculate the precent loss for each year:
-Precent.Loss.4 <- Precent.Loss(Presnt.Valu.1, Presnt.Valu.4)
+Precent.Loss.BAU <- Precent.Loss(Presnt.Valu.1, Presnt.Valu.4)
 
 # Create a data frame for these values:
-BAU.Loss.df <- tibble(t, Presnt.Valu.1, Presnt.Valu.4, Precent.Loss.4)
+BAU.Loss.df <- tibble(t, Presnt.Valu.1, Presnt.Valu.4, Precent.Loss.BAU)
 
 # Make a table:
 BAU.Loss.Table <- BAU.Loss.df %>% 
   mutate(t = row.names(.),
          Presnt.Valu.1 = color_tile("white", "orange") (Presnt.Valu.1),
          Presnt.Valu.4 = color_tile("white", "orange") (Presnt.Valu.4),
-         Precent.Loss.4 = percent(Precent.Loss.4),
-         Precent.Loss.4 = color_tile("#DeF7E9", "#71CA97") (Precent.Loss.4)) %>%
+         Precent.Loss.BAU = percent(Precent.Loss.BAU),
+         Precent.Loss.BAU = color_tile("#DeF7E9", "#71CA97") (Precent.Loss.BAU)) %>%
   rename("Year" = t,
          "Present Value (No Climate Change)" = Presnt.Valu.1,
          "Present Value (BAU Climate Change)" = Presnt.Valu.4,
-         "Loss in Present Value (%)" = Precent.Loss.4) %>% 
+         "Loss in Present Value (%)" = Precent.Loss.BAU) %>% 
   kable(escape = FALSE, align = c("l","c","c","r")) %>%
   kable_styling() %>%
   column_spec(1:4, color = "black")
 
+# Save the table:
   save_kable(BAU.Loss.Table, "figures/BAU.Loss.Table.png")
-
+# Call the table:
 BAU.Loss.Table
 
 ```
 
+***
+**(b) Now show how seneitive your calculation of $L$ is to the following parameters:
+$T$, $g$, $\eta$, and $\beta$. To do so, calculate the $\%$ change in $L$ that arises from a $10\%$ increase in each parameter.
+
 ```{r}
 
-library("htmltools")
-library("webshot")    
+# Set the 10% (*1.1) increase for each of the parameters:
+# 10% increase in T:
+T.increase <- T.4*1.1
+# 10% increase in g:
+g.increase <- g*1.1
+# 10% increase in eta:
+eta.increase <- eta*1.1
+# 10% increase in beta:
+beta.increase <- beta*1.1
 
-export_formattable <- function(f, file, width = "100%", height = NULL, 
-                               background = "white", delay = 0.2)
-    {
-      w <- as.htmlwidget(f, width = width, height = height)
-      path <- html_print(w, background = background, viewer = NULL)
-      url <- paste0("file:///", gsub("\\\\", "/", normalizePath(path)))
-      webshot(url,
-              file = file,
-              selector = ".formattable_widget",
-              delay = delay)
+# Build a function for the sensitivity of L:
+L.Sensitive <- function(L.x, L.BAU) {
+  P.increase = (L.x-L.BAU)/L.BAU
+  return(P.increase)
 }
 
-export_formattable(BAU.Loss.Table, here::here("figures", "BAU.Loss,Table.png"))
+# ---------------------------------------------------------
+
+# Change in L from a 10% increase in T:
+# Calculate the relative change in temperature:
+Temp.t.4.2 <- Temp.t(T.increase, t)
+# Calculate K(t), the fraction of economic activity:
+Econ.Retain.4.2 <- Econ.Retain(beta, Temp.t.4.2)
+# Now calculate C(t), total consumption at time t reduced by K(t):
+Econ.Consum.4.2 <- Econ.Consum(Econ.Retain.4.2, g, t)
+# Calculate U(C), society's utility from consumption:
+Soc.Utility.4.2 <- Soc.Utility(Econ.Consum.4.2, eta)
+# Calculate the present value utility over the next 200 years:
+Presnt.Valu.4.2 <- cumsum(Presnt.Valu(Soc.Utility.4.2, r, t))
+# Calculate the precent loss for each year with a 10% increase in T:
+Precent.Loss.T <- Precent.Loss(Presnt.Valu.1, Presnt.Valu.4.2)
+# Calculate the precent change in L:
+L.Increase.T <- L.Sensitive(Precent.Loss.BAU, Precent.Loss.T)
+
+# ---------------------------------------------------------------
+
+# Change in L from 10% increase in g:
+# Calculate C(t), total consumption at time t reduced by K(t):
+# For T = 4.4:
+Econ.Consum.4.3 <- Econ.Consum(Econ.Retain.4, g.increase, t)
+# For T = 0:
+Econ.Consum.1.3 <- Econ.Consum(Econ.Retain.1, g.increase, t)
+# Calculate U(C), society's utility from consumption:
+# For T = 4.4:
+Soc.Utility.4.3 <- Soc.Utility(Econ.Consum.4.3, eta)
+# For T = 0:
+Soc.Utility.1.3 <- Soc.Utility(Econ.Consum.1.3, eta)
+# Calculate the discount rate using the Ramsey Rule:
+r.3 = delta+(eta*g.increase)
+# Calculate the present value utility over the next 200 years with and without climate change:
+# With 4.4 climate change:
+Presnt.Valu.4.3 <- cumsum(Presnt.Valu(Soc.Utility.4.3, r.3, t))
+# Without climate change:
+Presnt.Valu.1.3 <- cumsum(Presnt.Valu(Soc.Utility.1.3, r.3, t))
+# Calculate the precent loss for each year with 10% increase in g:
+Precent.Loss.g <- Precent.Loss(Presnt.Valu.1.3, Presnt.Valu.4.3)
+# Calculate the precent change in L:
+L.Increase.g <- L.Sensitive(Precent.Loss.BAU, Precent.Loss.g)
+# --------------------------------------------------------------------
+
+# Change in L from 10% increase in eta:
+# Calculate U(C), society's utility from consumption:
+# For T = 4.4:
+Soc.Utility.4.4 <- Soc.Utility(Econ.Consum.4, eta.increase)
+# For T = 0:
+Soc.Utility.1.4 <- Soc.Utility(Econ.Consum.1, eta.increase)
+# Calculate the discount rate using the Ramsey Rule:
+r.4 = delta+(eta.increase*g)
+# Calculate the present value utility over the next 200 years with and without climate change:
+# With 4.4 climate change:
+Presnt.Valu.4.4 <- cumsum(Presnt.Valu(Soc.Utility.4.4, r.4, t))
+# Without climate change:
+Presnt.Valu.1.4 <- cumsum(Presnt.Valu(Soc.Utility.1.4, r.4, t))
+# Calculate the precent loss for each year with 10% increase in g:
+Precent.Loss.eta <- Precent.Loss(Presnt.Valu.1.4, Presnt.Valu.4.4)
+# Calculate the precent change in L:
+L.Increase.eta <- L.Sensitive(Precent.Loss.BAU, Precent.Loss.eta)
+
+# ----------------------------------------------------------------------
+
+# Change in L from 10% increase in beta:
+# Calculate K(t), the fraction of economic activity:
+# For T = 4.4:
+Econ.Retain.4.5 <- Econ.Retain(beta.increase, Temp.t.4)
+# For T = 0:
+Econ.Retain.1.5 <- Econ.Retain(beta.increase, Temp.t.1)
+# Calculate C(t), total consumption at time t reduced by K(t):
+# For T = 4.4:
+Econ.Consum.4.5 <- Econ.Consum(Econ.Retain.4.5, g, t)
+# For T = 0:
+Econ.Consum.1.5 <- Econ.Consum(Econ.Retain.1.5, g, t)
+# Calculate U(C), society's utility from consumption:
+# For T = 4.4:
+Soc.Utility.4.5 <- Soc.Utility(Econ.Consum.4.5, eta)
+# For T = 0:
+Soc.Utility.1.5 <- Soc.Utility(Econ.Consum.1.5, eta)
+# Calculate the present value utility over the next 200 years with and without climate change:
+# With 4.4 climate change:
+Presnt.Valu.4.5 <- cumsum(Presnt.Valu(Soc.Utility.4.5, r, t))
+# Without climate change:
+Presnt.Valu.1.5 <- cumsum(Presnt.Valu(Soc.Utility.1.5, r, t))
+# Calculate the precent loss for each year with 10% increase in beta:
+Precent.Loss.beta <- Precent.Loss(Presnt.Valu.1.5, Presnt.Valu.4.5)
+# Calculate the precent change in L:
+L.Increase.beta <- L.Sensitive(Precent.Loss.BAU, Precent.Loss.beta)
+
+# ------------------------------------------------------------------------
+
+# Create a data frame for these values:
+L.Sensitive.df <- tibble(t, Precent.Loss.BAU,
+                         Precent.Loss.T, L.Increase.T,
+                         Precent.Loss.g, L.Increase.g,
+                         Precent.Loss.eta, L.Increase.eta,
+                         Precent.Loss.beta, L.Increase.beta)
+
+# Make a table:
+L.Sensitive.Table <- L.Sensitive.df %>% 
+  select(t, Precent.Loss.BAU, L.Increase.T, L.Increase.g, L.Increase.eta, L.Increase.beta) %>% 
+  mutate(t = row.names(.),
+         Precent.Loss.BAU = percent(Precent.Loss.BAU),
+         L.Increase.T = percent(L.Increase.T),
+         L.Increase.g = percent(L.Increase.g),
+         L.Increase.eta = percent(L.Increase.eta),
+         L.Increase.beta = percent(L.Increase.beta),
+         Precent.Loss.BAU = color_tile("#DeF7E9", "#71CA97")(Precent.Loss.BAU),
+         L.Increase.T = color_tile("#B1CBEB", "#3E7DCC")(L.Increase.T),
+         L.Increase.g = color_tile("#B1CBEB", "#3E7DCC")(L.Increase.g),
+         L.Increase.eta = color_tile("#B1CBEB", "#3E7DCC")(L.Increase.eta),
+         L.Increase.beta = color_tile("#B1CBEB", "#3E7DCC")(L.Increase.beta)) %>%
+  rename("Year" = t,
+         "L at BAU" = Precent.Loss.BAU,
+         "10% Increase in T" = L.Increase.T,
+         "10% Increase in g" = L.Increase.g,
+         "10% Increase in eta" = L.Increase.eta,
+         "10% Increase in beta" = L.Increase.beta) %>% 
+  kable(escape = FALSE, align = c("l","r","r","r","r","r")) %>%
+  kable_styling() %>%
+  column_spec(1:6, color = "black")
+
+# Save the table:
+  save_kable(BAU.Loss.Table, "figures/L.Seneitive.Table.png")
+# Call the table:
+L.Sensitive.Table
+
+
 
 ```
 
