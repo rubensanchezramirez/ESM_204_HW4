@@ -328,9 +328,9 @@ Presnt.Valu <- function(V.t, r, t) {
 
 # Calculate the present value utility over the next 200 years with and without climate change:
 # With 4.4 climate change:
-Presnt.Valu.4 <- Presnt.Valu(Soc.Utility.4, r, t)
+Presnt.Valu.4 <- cumsum(Presnt.Valu(Soc.Utility.4, r, t))
 # Without climate change:
-Presnt.Valu.1 <- Presnt.Valu(Soc.Utility.1, r, t)
+Presnt.Valu.1 <- cumsum(Presnt.Valu(Soc.Utility.1, r, t))
 
 # Calcualte the precentage loss on present value utility from climate change (call this L):
 # Create a function for precent loss:
@@ -342,32 +342,49 @@ Precent.Loss <- function(P.1, P.4) {
 Precent.Loss.4 <- Precent.Loss(Presnt.Valu.1, Presnt.Valu.4)
 
 # Create a data frame for these values:
-BAU.Loss.df <- tibble(t, Presnt.Valu.1, Presnt.Valu.4, Precent.Loss.4) %>% 
+BAU.Loss.df <- tibble(t, Presnt.Valu.1, Presnt.Valu.4, Precent.Loss.4)
+
+# Make a table:
+BAU.Loss.Table <- BAU.Loss.df %>% 
+  mutate(t = row.names(.),
+         Presnt.Valu.1 = color_tile("white", "orange") (Presnt.Valu.1),
+         Presnt.Valu.4 = color_tile("white", "orange") (Presnt.Valu.4),
+         Precent.Loss.4 = percent(Precent.Loss.4),
+         Precent.Loss.4 = color_tile("#DeF7E9", "#71CA97") (Precent.Loss.4)) %>%
   rename("Year" = t,
          "Present Value (No Climate Change)" = Presnt.Valu.1,
          "Present Value (BAU Climate Change)" = Presnt.Valu.4,
-         "Loss in Present Value (%)" = Precent.Loss.4)
+         "Loss in Present Value (%)" = Precent.Loss.4) %>% 
+  kable(escape = FALSE, align = c("l","c","c","r")) %>%
+  kable_styling() %>%
+  column_spec(1:4, color = "black")
 
-# Make a table:
-BAU.Loss.Table <- 
-  formattable(BAU.Loss.df,
-              align = c("l","c","c","r"),
-              list(`Year` =
-                     formatter("span", style = ~ style(color = "grey",font.weight = "bold")),
-                   area(col = 2) ~ color_tile("white", "orange"),
-                   area(col = 3) ~ color_tile("white", "orange"),
-                   area(col = 4) ~ color_tile("#DeF7E9", "#71CA97"),
-                   area(col = 4) ~ percent
-                   )
-              )
+  save_kable(BAU.Loss.Table, "figures/BAU.Loss.Table.png")
 
-as.htmlwidget(BAU.Loss.Table, width = "100%", height = NULL)
-
-
-
+BAU.Loss.Table
 
 ```
 
+```{r}
+
+library("htmltools")
+library("webshot")    
+
+export_formattable <- function(f, file, width = "100%", height = NULL, 
+                               background = "white", delay = 0.2)
+    {
+      w <- as.htmlwidget(f, width = width, height = height)
+      path <- html_print(w, background = background, viewer = NULL)
+      url <- paste0("file:///", gsub("\\\\", "/", normalizePath(path)))
+      webshot(url,
+              file = file,
+              selector = ".formattable_widget",
+              delay = delay)
+}
+
+export_formattable(BAU.Loss.Table, here::here("figures", "BAU.Loss,Table.png"))
+
+```
 
 
 
